@@ -1,0 +1,424 @@
+[
+  {
+    "result_id": 40,
+    "restaurant": "Innatbayharbor",
+    "phone": "+18447172072",
+    "location": "Petoskey, Michigan",
+    "outcome": "no_answer",
+    "duration_seconds": 30.0,
+    "extraction": {
+      "answered_by_human": false,
+      "voicemail": false,
+      "ivr_present": false,
+      "hold_time_seconds": null,
+      "stated_close_time": null,
+      "stated_open_for_takeout": null,
+      "order_accepted": false,
+      "order_refused_reason": null,
+      "upsell_attempted": false,
+      "estimated_pickup_minutes": null,
+      "host_name": null,
+      "english_fluency": "unknown",
+      "friendliness": "unknown",
+      "hung_up_by": "system",
+      "notable_quotes": [],
+      "summary_one_line": "No answer after ringing.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 90.0,
+      "pain_score": 95.0,
+      "replaceability_score": 85.5,
+      "answer_quality": 5.0,
+      "order_handling": 0.0,
+      "host_quality": 0.0,
+      "urgency_tier": "hot",
+      "sdr_one_liner": "[HOT] No one answered during business hours \u2014 they're losing orders right now.",
+      "reasons": [
+        "Phone rang out \u2014 no one picked up."
+      ]
+    },
+    "transcript": "[no answer after 30 seconds of ringing]"
+  },
+  {
+    "result_id": 21,
+    "restaurant": "Bar A",
+    "phone": "+17326817422",
+    "location": "Belmar, New Jersey",
+    "outcome": "no_answer",
+    "duration_seconds": 30.0,
+    "extraction": {
+      "answered_by_human": false,
+      "voicemail": false,
+      "ivr_present": false,
+      "hold_time_seconds": null,
+      "stated_close_time": null,
+      "stated_open_for_takeout": null,
+      "order_accepted": false,
+      "order_refused_reason": null,
+      "upsell_attempted": false,
+      "estimated_pickup_minutes": null,
+      "host_name": null,
+      "english_fluency": "unknown",
+      "friendliness": "unknown",
+      "hung_up_by": "system",
+      "notable_quotes": [],
+      "summary_one_line": "No answer after ringing.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 90.0,
+      "pain_score": 95.0,
+      "replaceability_score": 85.5,
+      "answer_quality": 5.0,
+      "order_handling": 0.0,
+      "host_quality": 0.0,
+      "urgency_tier": "hot",
+      "sdr_one_liner": "[HOT] No one answered during business hours \u2014 they're losing orders right now.",
+      "reasons": [
+        "Phone rang out \u2014 no one picked up."
+      ]
+    },
+    "transcript": "[no answer after 30 seconds of ringing]"
+  },
+  {
+    "result_id": 25,
+    "restaurant": "Weathervaneseafoods",
+    "phone": "+12074390330",
+    "location": "Kittery, Maine",
+    "outcome": "no_answer",
+    "duration_seconds": 30.0,
+    "extraction": {
+      "answered_by_human": false,
+      "voicemail": false,
+      "ivr_present": false,
+      "hold_time_seconds": null,
+      "stated_close_time": null,
+      "stated_open_for_takeout": null,
+      "order_accepted": false,
+      "order_refused_reason": null,
+      "upsell_attempted": false,
+      "estimated_pickup_minutes": null,
+      "host_name": null,
+      "english_fluency": "unknown",
+      "friendliness": "unknown",
+      "hung_up_by": "system",
+      "notable_quotes": [],
+      "summary_one_line": "No answer after ringing.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 90.0,
+      "pain_score": 95.0,
+      "replaceability_score": 85.5,
+      "answer_quality": 5.0,
+      "order_handling": 0.0,
+      "host_quality": 0.0,
+      "urgency_tier": "hot",
+      "sdr_one_liner": "[HOT] No one answered during business hours \u2014 they're losing orders right now.",
+      "reasons": [
+        "Phone rang out \u2014 no one picked up."
+      ]
+    },
+    "transcript": "[no answer after 30 seconds of ringing]"
+  },
+  {
+    "result_id": 38,
+    "restaurant": "Luccaboston",
+    "phone": "+16177429200",
+    "location": "Boston, Massachusetts",
+    "outcome": "answered",
+    "duration_seconds": 87.0,
+    "extraction": {
+      "answered_by_human": false,
+      "voicemail": false,
+      "ivr_present": true,
+      "hold_time_seconds": 60,
+      "stated_close_time": null,
+      "stated_open_for_takeout": null,
+      "order_accepted": false,
+      "order_refused_reason": "other",
+      "upsell_attempted": false,
+      "estimated_pickup_minutes": null,
+      "host_name": null,
+      "english_fluency": "unknown",
+      "friendliness": "unknown",
+      "hung_up_by": "customer",
+      "notable_quotes": [
+        "IVR with no path to a human; abandoned after >60s hold."
+      ],
+      "summary_one_line": "IVR with no human handoff; caller abandoned.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 90.0,
+      "pain_score": 72.5,
+      "replaceability_score": 65.2,
+      "answer_quality": 20.0,
+      "order_handling": 25.0,
+      "host_quality": 45,
+      "urgency_tier": "warm",
+      "sdr_one_liner": "[WARM] IVR with no human handoff \u2014 caller abandoned. Big Maple win.",
+      "reasons": [
+        "IVR phone tree before reaching a human.",
+        "~60s hold before being helped.",
+        "IVR never routed to a human; caller abandoned.",
+        "Order refused: other."
+      ]
+    },
+    "transcript": "IVR: Thank you for calling Luccaboston. For hours, press 1. For directions, press 2. To place an order, press 3. To speak with a host, press 0.\n[Alex presses 3]\nIVR: Online ordering is available at our website. To speak with a host, press 0. Or stay on the line.\n[hold music for 60+ seconds]\n[Alex hangs up after waiting]"
+  },
+  {
+    "result_id": 14,
+    "restaurant": "Thekniferestaurant",
+    "phone": "+17862320040",
+    "location": "Miami, Florida",
+    "outcome": "answered",
+    "duration_seconds": 124.0,
+    "extraction": {
+      "answered_by_human": true,
+      "voicemail": false,
+      "ivr_present": false,
+      "hold_time_seconds": 0,
+      "stated_close_time": null,
+      "stated_open_for_takeout": true,
+      "order_accepted": false,
+      "order_refused_reason": null,
+      "upsell_attempted": false,
+      "estimated_pickup_minutes": null,
+      "host_name": null,
+      "english_fluency": "limited",
+      "friendliness": "neutral",
+      "hung_up_by": "customer",
+      "notable_quotes": [],
+      "summary_one_line": "Order takeable on the phone.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 90.0,
+      "pain_score": 49.5,
+      "replaceability_score": 44.6,
+      "answer_quality": 100.0,
+      "order_handling": 25.0,
+      "host_quality": 40,
+      "urgency_tier": "cold",
+      "sdr_one_liner": "[COLD] Language barrier on the phone \u2014 Maple can lift order capture without staffing changes.",
+      "reasons": [
+        "Order not completed.",
+        "Language barrier may be costing them orders."
+      ]
+    },
+    "transcript": "Host: Hello? Thekniferestaurant?\nAlex: Hi, are you open for takeout right now?\nHost: Eh\u2026 takeout, yes. You order?\nAlex: Yes, what time do you close?\nHost: Close? Nine, ten. Yes.\nAlex: Can I order the burger?\nHost: Burger\u2026 yes. One?\nAlex: Yes one. What sides do you have?\nHost: Sorry, one moment, my son help \u2014 Hello? Yes, sides are fries, salad.\nAlex: Just the burger then. Let me call back to confirm, thanks."
+  },
+  {
+    "result_id": 20,
+    "restaurant": "Theoldepinkhouserestaurant",
+    "phone": "+19122324286",
+    "location": "Savannah, Georgia",
+    "outcome": "answered",
+    "duration_seconds": 94.0,
+    "extraction": {
+      "answered_by_human": true,
+      "voicemail": false,
+      "ivr_present": false,
+      "hold_time_seconds": 0,
+      "stated_close_time": null,
+      "stated_open_for_takeout": true,
+      "order_accepted": false,
+      "order_refused_reason": null,
+      "upsell_attempted": true,
+      "estimated_pickup_minutes": null,
+      "host_name": null,
+      "english_fluency": "fluent",
+      "friendliness": "neutral",
+      "hung_up_by": "customer",
+      "notable_quotes": [],
+      "summary_one_line": "Order takeable on the phone. Host attempted an upsell.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 90.0,
+      "pain_score": 37.0,
+      "replaceability_score": 33.3,
+      "answer_quality": 100.0,
+      "order_handling": 40.0,
+      "host_quality": 65,
+      "urgency_tier": "cold",
+      "sdr_one_liner": "[COLD] Order not completed.",
+      "reasons": [
+        "Order not completed.",
+        "Attempted an upsell."
+      ]
+    },
+    "transcript": "Host: Theoldepinkhouserestaurant.\nAlex: Hi, are you open for takeout?\nHost: Yeah, til nine.\nAlex: Cool, can I order the burger?\nHost: Sure. Anything else?\nAlex: Hmm, what would you recommend with it?\nHost: Up to you.\nAlex: Okay just the one. How long for pickup?\nHost: Fifteen minutes.\nAlex: Let me call back to confirm, thanks."
+  },
+  {
+    "result_id": 23,
+    "restaurant": "Shooterswaterfront",
+    "phone": "+19545662855",
+    "location": "Fort Lauderdale, Florida",
+    "outcome": "answered",
+    "duration_seconds": 22.0,
+    "extraction": {
+      "answered_by_human": true,
+      "voicemail": false,
+      "ivr_present": false,
+      "hold_time_seconds": 0,
+      "stated_close_time": null,
+      "stated_open_for_takeout": false,
+      "order_accepted": false,
+      "order_refused_reason": "online_only",
+      "upsell_attempted": false,
+      "estimated_pickup_minutes": null,
+      "host_name": "Jordan",
+      "english_fluency": "fluent",
+      "friendliness": "warm",
+      "hung_up_by": "customer",
+      "notable_quotes": [
+        "We actually only do takeout through our website or DoorDash now."
+      ],
+      "summary_one_line": "Order refused: online_only.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 5.0,
+      "pain_score": 39.5,
+      "replaceability_score": 2.0,
+      "answer_quality": 100.0,
+      "order_handling": 25.0,
+      "host_quality": 90,
+      "urgency_tier": "skip",
+      "sdr_one_liner": "[SKIP] Online-only ordering. Maple's phone product doesn't fit.",
+      "reasons": [
+        "Online-only \u2014 Maple has no phone job to replace here.",
+        "Doesn't take phone orders \u2014 online-only.",
+        "Warm, welcoming tone."
+      ]
+    },
+    "transcript": "Host: Shooterswaterfront, this is Jordan.\nAlex: Hi, can I place a takeout order over the phone?\nHost: We actually only do takeout through our website or DoorDash now.\nAlex: Oh okay, no problem, I'll do that. Thanks."
+  },
+  {
+    "result_id": 34,
+    "restaurant": "Barrybagels",
+    "phone": "+14198851900",
+    "location": "Toledo, Ohio",
+    "outcome": "busy",
+    "duration_seconds": 2.0,
+    "extraction": {
+      "answered_by_human": false,
+      "voicemail": false,
+      "ivr_present": false,
+      "hold_time_seconds": null,
+      "stated_close_time": null,
+      "stated_open_for_takeout": null,
+      "order_accepted": false,
+      "order_refused_reason": null,
+      "upsell_attempted": false,
+      "estimated_pickup_minutes": null,
+      "host_name": null,
+      "english_fluency": "unknown",
+      "friendliness": "unknown",
+      "hung_up_by": "system",
+      "notable_quotes": [],
+      "summary_one_line": "Line was busy.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 90.0,
+      "pain_score": 85.0,
+      "replaceability_score": 76.5,
+      "answer_quality": 10.0,
+      "order_handling": 0.0,
+      "host_quality": 0.0,
+      "urgency_tier": "hot",
+      "sdr_one_liner": "[HOT] Line busy during business hours \u2014 likely understaffed phones.",
+      "reasons": [
+        "Line was busy."
+      ]
+    },
+    "transcript": "[busy signal]"
+  },
+  {
+    "result_id": 39,
+    "restaurant": "Houseofflavors",
+    "phone": "+12318457369",
+    "location": "Ludington, Michigan",
+    "outcome": "voicemail",
+    "duration_seconds": 21.0,
+    "extraction": {
+      "answered_by_human": false,
+      "voicemail": true,
+      "ivr_present": false,
+      "hold_time_seconds": null,
+      "stated_close_time": null,
+      "stated_open_for_takeout": null,
+      "order_accepted": false,
+      "order_refused_reason": null,
+      "upsell_attempted": false,
+      "estimated_pickup_minutes": null,
+      "host_name": null,
+      "english_fluency": "unknown",
+      "friendliness": "unknown",
+      "hung_up_by": "customer",
+      "notable_quotes": [],
+      "summary_one_line": "Reached voicemail; hours stated in greeting.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 90.0,
+      "pain_score": 80.0,
+      "replaceability_score": 72.0,
+      "answer_quality": 15.0,
+      "order_handling": 0.0,
+      "host_quality": 0.0,
+      "urgency_tier": "hot",
+      "sdr_one_liner": "[HOT] Phone goes to voicemail mid-day; clear case for AI answering.",
+      "reasons": [
+        "Routes to voicemail during stated business hours."
+      ]
+    },
+    "transcript": "Voicemail: You've reached Houseofflavors. We're not available right now. Our hours are 11 AM to 9 PM Tuesday through Sunday. Please leave a message after the tone.\nAlex: Hi, this is Alex, I was hoping to place a takeout order, I'll try back later, thanks."
+  },
+  {
+    "result_id": 30,
+    "restaurant": "Reids",
+    "phone": "+17043777686",
+    "location": "Charlotte, North Carolina",
+    "outcome": "failed",
+    "duration_seconds": 0.0,
+    "extraction": {
+      "answered_by_human": false,
+      "voicemail": false,
+      "ivr_present": false,
+      "hold_time_seconds": null,
+      "stated_close_time": null,
+      "stated_open_for_takeout": null,
+      "order_accepted": false,
+      "order_refused_reason": null,
+      "upsell_attempted": false,
+      "estimated_pickup_minutes": null,
+      "host_name": null,
+      "english_fluency": "unknown",
+      "friendliness": "unknown",
+      "hung_up_by": "system",
+      "notable_quotes": [],
+      "summary_one_line": "Carrier or system error placing the call.",
+      "extractor": "heuristic"
+    },
+    "scoring": {
+      "fit_score": 0.0,
+      "pain_score": 0.0,
+      "replaceability_score": 0.0,
+      "answer_quality": 0.0,
+      "order_handling": 0.0,
+      "host_quality": 0.0,
+      "urgency_tier": "skip",
+      "sdr_one_liner": "[SKIP] Number appears invalid \u2014 verify before outreach.",
+      "reasons": [
+        "Bad/unreachable number \u2014 likely a data quality issue.",
+        "Call could not be placed (carrier error)."
+      ]
+    },
+    "transcript": "[carrier error: call could not be placed]"
+  }
+]

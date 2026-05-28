@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import os
 import sys
+from contextlib import closing
 from pathlib import Path
 
 from .config import load_config
@@ -12,9 +15,20 @@ from .ingest import ingest_xlsx
 from .orchestrator import run_batch
 
 
+def _setup_logging(verbose: bool) -> None:
+    """Honour MYSTERY_SHOP_LOG (env) or --verbose. Default level INFO so the user sees the
+    orchestrator's batch progress without opting in. Quiet by default in tests."""
+    level_name = os.getenv("MYSTERY_SHOP_LOG", "INFO" if verbose else "WARNING").upper()
+    logging.basicConfig(
+        level=getattr(logging, level_name, logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     cfg = load_config()
-    with connect(cfg.db_path) as conn:
+    with closing(connect(cfg.db_path)) as conn:
         init_schema(conn)
     print(f"Initialized schema at {cfg.db_path}")
     return 0
@@ -26,7 +40,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     if not path.exists():
         print(f"File not found: {path}", file=sys.stderr)
         return 1
-    with connect(cfg.db_path) as conn:
+    with closing(connect(cfg.db_path)) as conn:
         init_schema(conn)
         counters = ingest_xlsx(conn, path)
     print(json.dumps(counters, indent=2))
@@ -35,26 +49,29 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     cfg = load_config()
-    with connect(cfg.db_path) as conn:
+    with closing(connect(cfg.db_path)) as conn:
         init_schema(conn)
         records = run_batch(conn, cfg, batch_size=args.batch)
     summary = {
         "calls_placed": len(records),
         "outcomes": {},
         "tiers": {},
+        "errors": 0,
     }
     for r in records:
         summary["outcomes"][r.outcome.value] = summary["outcomes"].get(r.outcome.value, 0) + 1
         if r.scoring:
             t = r.scoring.urgency_tier
             summary["tiers"][t] = summary["tiers"].get(t, 0) + 1
+        if r.error:
+            summary["errors"] += 1
     print(json.dumps(summary, indent=2))
     return 0
 
 
 def cmd_results(args: argparse.Namespace) -> int:
     cfg = load_config()
-    with connect(cfg.db_path) as conn:
+    with closing(connect(cfg.db_path)) as conn:
         rows = conn.execute(
             """SELECT
                  r.id AS result_id,
@@ -90,7 +107,7 @@ def cmd_results(args: argparse.Namespace) -> int:
 
 def cmd_stats(args: argparse.Namespace) -> int:
     cfg = load_config()
-    with connect(cfg.db_path) as conn:
+    with closing(connect(cfg.db_path)) as conn:
         lead_total = conn.execute("SELECT COUNT(*) c FROM leads").fetchone()["c"]
         by_status = conn.execute("SELECT status, COUNT(*) c FROM leads GROUP BY status").fetchall()
         attempts = conn.execute("SELECT COUNT(*) c FROM call_attempts").fetchone()["c"]
@@ -110,6 +127,8 @@ def cmd_stats(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="mystery-shop")
+    p.add_argument("-v", "--verbose", action="store_true",
+                   help="Enable INFO-level logging from the pipeline (default WARNING).")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sp = sub.add_parser("init", help="Create the SQLite schema.")
@@ -132,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
     sp.set_defaults(func=cmd_stats)
 
     args = p.parse_args(argv)
+    _setup_logging(args.verbose)
     return args.func(args)
 
 

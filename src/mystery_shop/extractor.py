@@ -11,12 +11,24 @@ check / cost guardrail."""
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import asdict, dataclass, field
 from typing import Literal
 
 from .config import Config
 from .providers.base import CallOutcome
+
+logger = logging.getLogger(__name__)
+
+
+def _is_blank(s: str | None) -> bool:
+    """True if a transcript is effectively empty — None, whitespace, or a single bracketed marker.
+    Vapi occasionally hands back a call object with no transcript even when status='ended'."""
+    if not s:
+        return True
+    stripped = s.strip()
+    return not stripped or stripped in ("[]", "[empty]", "[no transcript]")
 
 
 Fluency = Literal["fluent", "partial", "limited", "unknown"]
@@ -115,6 +127,15 @@ class HeuristicExtractor:
     name = "heuristic"
 
     def extract(self, transcript: str, outcome: CallOutcome) -> Extraction:
+        # Edge case: provider reported 'answered' but the transcript came back empty. This
+        # happens in real life — Vapi can lose audio capture or the agent can hang up before
+        # speech is recorded. Treat as a degraded result so we don't pretend to have data.
+        if outcome == CallOutcome.ANSWERED and _is_blank(transcript):
+            ext = _empty_for_non_answered(outcome, self.name,
+                "Call connected but no transcript captured — likely audio/capture failure.")
+            ext.answered_by_human = True  # we know that much
+            return ext
+
         if outcome == CallOutcome.VOICEMAIL:
             close_m = _CLOSE_TIME_RE.search(transcript)
             return Extraction(
@@ -258,29 +279,58 @@ class LLMExtractor:
         self._client = OpenAI(api_key=api_key)
         self._model = model
 
+    def _fallback(self, transcript: str, outcome: CallOutcome, reason: str) -> Extraction:
+        """Drop down to heuristic, but stamp the extractor name so the SDR/UI knows what happened."""
+        logger.warning("LLM extraction fell back to heuristic: %s", reason)
+        ext = HeuristicExtractor().extract(transcript, outcome)
+        ext.extractor = "heuristic_llm_fallback"
+        return ext
+
     def extract(self, transcript: str, outcome: CallOutcome) -> Extraction:
         # Non-answered outcomes don't need an LLM call — saves money on no-answers.
         if outcome != CallOutcome.ANSWERED:
             return HeuristicExtractor().extract(transcript, outcome)
+
+        # Same audio/capture failure case as the heuristic — no need to pay OpenAI to look at nothing.
+        if _is_blank(transcript):
+            ext = _empty_for_non_answered(outcome, self.name,
+                "Call connected but no transcript captured — likely audio/capture failure.")
+            ext.answered_by_human = True
+            return ext
 
         user_msg = (
             f"Call outcome: {outcome.value}\n"
             f"Transcript:\n---\n{transcript}\n---\n"
             "Return the JSON object matching the CallExtraction schema."
         )
-        resp = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": _LLM_SYSTEM},
-                {"role": "user", "content": user_msg},
-            ],
-            response_format={"type": "json_schema", "json_schema": _LLM_JSON_SCHEMA},
-            temperature=0,
-        )
-        raw = resp.choices[0].message.content or "{}"
-        data = json.loads(raw)
-        data["extractor"] = self.name
-        return Extraction(**data)
+        try:
+            resp = self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": _LLM_SYSTEM},
+                    {"role": "user", "content": user_msg},
+                ],
+                response_format={"type": "json_schema", "json_schema": _LLM_JSON_SCHEMA},
+                temperature=0,
+            )
+        except Exception as exc:
+            # Network errors, rate limits, auth errors — all bucket here. Heuristic catches us.
+            return self._fallback(transcript, outcome, f"OpenAI API error: {type(exc).__name__}: {exc}")
+
+        raw = (resp.choices[0].message.content or "").strip()
+        if not raw:
+            return self._fallback(transcript, outcome, "LLM returned empty content")
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            return self._fallback(transcript, outcome, f"LLM returned invalid JSON: {exc}")
+
+        try:
+            data["extractor"] = self.name
+            return Extraction(**data)
+        except TypeError as exc:
+            # Model returned fields that don't match our dataclass — schema drift.
+            return self._fallback(transcript, outcome, f"LLM JSON didn't match schema: {exc}")
 
 
 def build_extractor(cfg: Config):

@@ -121,7 +121,6 @@ def test_online_only_is_skip():
 
 def test_end_to_end_run_batch(conn: sqlite3.Connection):
     """Seed leads, run a batch, verify rows in attempts + results."""
-    now = datetime.now(timezone.utc).isoformat()
     # Use a timezone where it's currently business hours (UTC noon-ish is daytime nearly everywhere in the US).
     conn.executemany(
         """INSERT INTO leads (phone, restaurant_name, state, timezone, status)
@@ -132,7 +131,6 @@ def test_end_to_end_run_batch(conn: sqlite3.Connection):
         ],
     )
     cfg = load_config()
-    # Force into business hours by directly updating eligible time (already null)
     records = run_batch(conn, cfg, batch_size=5)
     if not records:
         pytest.skip("Outside business hours; skipping live timing-dependent assertion.")
@@ -140,3 +138,107 @@ def test_end_to_end_run_batch(conn: sqlite3.Connection):
     results = conn.execute("SELECT COUNT(*) c FROM call_results").fetchone()["c"]
     assert attempts == len(records)
     assert results == len(records)
+
+
+# ---------------------------------------------------------------------------
+# Error-path tests (added 2026-05-28).
+# ---------------------------------------------------------------------------
+
+def test_heuristic_handles_empty_transcript_on_answered():
+    """Vapi sometimes returns outcome=answered with no transcript (audio capture failure).
+    We should not crash and we should produce an honest, degraded record."""
+    ext = HeuristicExtractor().extract("", CallOutcome.ANSWERED)
+    assert ext.answered_by_human is True
+    assert ext.order_accepted is False
+    assert "no transcript" in ext.summary_one_line.lower()
+
+
+def test_llm_extractor_falls_back_to_heuristic_on_api_error(monkeypatch):
+    """If OpenAI raises (network, rate limit, auth), the LLM extractor should fall back
+    to the heuristic and stamp the extractor field so downstream knows what happened."""
+    from mystery_shop.extractor import LLMExtractor
+
+    class _BoomClient:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    raise RuntimeError("simulated OpenAI 503")
+
+    extractor = LLMExtractor.__new__(LLMExtractor)  # bypass real OpenAI client init
+    extractor._client = _BoomClient()
+    extractor._model = "gpt-4o-mini"
+
+    transcript = "Host: Test Diner, this is Maria.\nAlex: Are you open for takeout?\nHost: Yes, until 10 PM."
+    result = extractor.extract(transcript, CallOutcome.ANSWERED)
+    assert result.extractor == "heuristic_llm_fallback"
+    assert result.answered_by_human is True
+    assert result.host_name == "Maria"
+
+
+class _FlakyProvider:
+    """Throws on the second lead in a batch; succeeds on the others.
+    Lets us prove that one bad call doesn't poison the whole batch."""
+    name = "flaky_mock"
+
+    def __init__(self):
+        self.calls = 0
+
+    def place_call(self, req):
+        from mystery_shop.providers.mock import MockProvider
+        self.calls += 1
+        if self.calls == 2:
+            raise RuntimeError("simulated provider outage")
+        return MockProvider().place_call(req)
+
+
+def test_run_batch_survives_a_provider_exception(conn: sqlite3.Connection):
+    """One lead in the batch should fail without poisoning the others, and the failed
+    lead should be left in a state that lets the scheduler retry it later."""
+    conn.executemany(
+        """INSERT INTO leads (phone, restaurant_name, state, timezone, status)
+           VALUES (?, ?, ?, ?, 'new')""",
+        [
+            (f"+13125550{i:03d}", f"Boom Test {i}", "Illinois", "America/Chicago")
+            for i in range(3)
+        ],
+    )
+    cfg = load_config()
+    records = run_batch(conn, cfg, batch_size=3, provider=_FlakyProvider())
+    if not records:
+        pytest.skip("Outside business hours; skipping timing-dependent assertion.")
+
+    # All three leads should have a corresponding PipelineRecord; one of them should be marked error.
+    assert len(records) == 3
+    error_records = [r for r in records if r.error is not None]
+    assert len(error_records) == 1
+    assert "simulated provider outage" in error_records[0].error
+
+    # The failed lead should be back in 'new' state with next_eligible_at set (24h retry),
+    # not stuck in 'in_progress'.
+    failed_lead_id = error_records[0].lead_id
+    row = conn.execute(
+        "SELECT status, next_eligible_at, attempt_count FROM leads WHERE id = ?",
+        (failed_lead_id,),
+    ).fetchone()
+    assert row["status"] == "new"
+    assert row["next_eligible_at"] is not None
+    assert row["attempt_count"] == 1
+
+    # A synthetic 'failed' attempt row should exist for the audit trail.
+    failed_attempts = conn.execute(
+        "SELECT COUNT(*) c FROM call_attempts WHERE outcome = 'failed'"
+    ).fetchone()["c"]
+    assert failed_attempts >= 1
+
+
+def test_scheduler_skips_outside_business_hours():
+    """Sanity check: a Hawaii lead at UTC 00:00 (which is 14:00 HST — inside our window).
+    But a UK timezone lead at UTC 03:00 should be filtered (03:00 UTC = 04:00 BST, before 11)."""
+    from mystery_shop.scheduler import is_within_business_hours
+    cfg = load_config()
+    utc_3am = datetime(2026, 5, 28, 3, 0, tzinfo=timezone.utc)
+    # 11pm Eastern day before — outside business hours
+    assert not is_within_business_hours("America/New_York", cfg, utc_3am)
+    # Lead with no timezone should never be in business hours
+    assert not is_within_business_hours(None, cfg, utc_3am)

@@ -59,6 +59,83 @@ heuristic extractor for `gpt-4o-mini` structured-output extraction. Set
 
 ---
 
+## Live demo (for the 30-min interview session)
+
+Three commands that show the system working end-to-end in under 60 seconds:
+
+```bash
+# 1. Place a small batch and see the outcome distribution + tier breakdown
+mystery-shop -v run --batch 5
+#  -> {"calls_placed": 5, "outcomes": {...}, "tiers": {"hot": 2, ...}, "errors": 0}
+
+# 2. Pull the top hot lead with the full SDR briefing
+mystery-shop results --limit 1
+
+# 3. Or hit the API for the SDR-facing view
+uvicorn mystery_shop.api:app --reload  # then open http://localhost:8000/results?tier=hot
+```
+
+To prove the error-handling story (no-op without it, but worth showing on a code walk):
+
+```bash
+# The orchestrator already survives provider exceptions — see
+# tests/test_pipeline.py::test_run_batch_survives_a_provider_exception
+pytest -q -k provider_exception
+```
+
+---
+
+## Sample output (one row, real run)
+
+This is a real `mystery-shop results --limit 1` row from a fresh batch — copy of the
+structure you'll see in [`samples/sample_results.json`](samples/sample_results.json):
+
+```json
+{
+  "result_id": 17,
+  "restaurant": "Thekniferestaurant",
+  "phone": "+17862320040",
+  "location": "Miami, Florida",
+  "outcome": "no_answer",
+  "duration_seconds": 30.0,
+  "extraction": {
+    "answered_by_human": false,
+    "voicemail": false,
+    "ivr_present": false,
+    "hold_time_seconds": null,
+    "stated_close_time": null,
+    "stated_open_for_takeout": null,
+    "order_accepted": false,
+    "order_refused_reason": null,
+    "upsell_attempted": false,
+    "estimated_pickup_minutes": null,
+    "host_name": null,
+    "english_fluency": "unknown",
+    "friendliness": "unknown",
+    "hung_up_by": "system",
+    "notable_quotes": [],
+    "summary_one_line": "No answer after ringing.",
+    "extractor": "heuristic"
+  },
+  "scoring": {
+    "fit_score": 90.0,
+    "pain_score": 95.0,
+    "replaceability_score": 85.5,
+    "answer_quality": 5.0,
+    "order_handling": 0.0,
+    "host_quality": 0.0,
+    "urgency_tier": "hot",
+    "sdr_one_liner": "[HOT] No one answered during business hours — they're losing orders right now.",
+    "reasons": ["Phone rang out — no one picked up."]
+  }
+}
+```
+
+The `sdr_one_liner` and `urgency_tier` are what surfaces in the CRM row. Everything
+else is for "click to expand."
+
+---
+
 ## What's mocked, what's real
 
 | Layer | Default | Real path |
@@ -68,7 +145,7 @@ heuristic extractor for `gpt-4o-mini` structured-output extraction. Set
 | Agent script (persona + system prompt) | Real | — |
 | **Call placement** | **Mock** — deterministic per-phone hash, 5-outcome distribution, 7 answered flavors | `VapiProvider` in [`providers/vapi.py`](src/mystery_shop/providers/vapi.py) hits real Vapi `/call` API |
 | **Transcript** | **Mock** — templated dialogue per flavor with restaurant name + menu interpolation | Real, from Vapi |
-| **Extraction** | Heuristic regex (deterministic, lossless on mock templates) | `LLMExtractor` uses OpenAI structured outputs — kicks in if `OPENAI_API_KEY` is set |
+| **Extraction** | Heuristic regex (deterministic, lossless on mock templates) | `LLMExtractor` uses OpenAI structured outputs — kicks in if `OPENAI_API_KEY` is set. Falls back to heuristic automatically on any OpenAI failure (network, rate-limit, schema drift) and stamps the result with `extractor: "heuristic_llm_fallback"`. |
 | Scoring | Real — same code regardless of upstream | — |
 | FastAPI read endpoints | Real | — |
 
@@ -144,6 +221,40 @@ And a one-liner per call so the SDR doesn't need to read JSON:
 - **`claim_next_batch` is atomic** — selects, filters by business hours in
   Python (the DB doesn't know about timezones), marks `in_progress`, all inside
   one transaction. Safe under a future worker pool.
+- **Skip-reason logging.** When the scheduler returns fewer leads than
+  requested, it logs the breakdown — `outside_business_hours`, `no_timezone`,
+  `cooling_down`, `maxed_attempts`. Operators can tell "the queue is empty"
+  apart from "every callable lead is on the east coast and it's 2am there."
+
+---
+
+## Error handling & recovery
+
+The pipeline is designed to **never leave a lead stuck**.
+
+- **Per-lead try/except in the orchestrator.** If anything throws while
+  processing a lead — provider timeout, OpenAI 503, DB hiccup — we catch it
+  at the batch boundary, log it, and write a synthetic `failed` `call_attempt`
+  row capturing the exception. The lead is then run through the standard retry
+  policy (24h cooldown, retry once), so a transient outage degrades gracefully
+  instead of stalling the queue.
+- **LLM extractor falls back to heuristic** on any OpenAI error (network,
+  rate-limit, auth, schema drift, or invalid JSON). The fallback Extraction is
+  stamped with `extractor: "heuristic_llm_fallback"` so the UI and SDRs know
+  what happened. Cost guardrail too: we never pay for an LLM call on a
+  non-answered outcome or on an empty transcript.
+- **Empty / truncated transcripts** (Vapi can lose audio capture even on a
+  successful answered call) are detected and produce an honest degraded record
+  with `answered_by_human: true` but `summary_one_line` flagging the capture
+  failure — better than letting the regex hallucinate fields.
+- **Connection lifecycle is explicit.** `api.py` uses FastAPI `Depends(get_db)`
+  to open + close per request. `cli.py` uses `contextlib.closing` so command
+  exits don't leak file handles.
+
+Covered by tests:
+`test_run_batch_survives_a_provider_exception`,
+`test_llm_extractor_falls_back_to_heuristic_on_api_error`,
+`test_heuristic_handles_empty_transcript_on_answered`.
 
 ---
 

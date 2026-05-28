@@ -18,6 +18,7 @@ Retry policy after an attempt:
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -25,6 +26,8 @@ from zoneinfo import ZoneInfo
 from .config import Config
 from .db import transaction
 from .providers.base import CallOutcome
+
+logger = logging.getLogger(__name__)
 
 
 def _now_utc() -> datetime:
@@ -44,11 +47,40 @@ def is_within_business_hours(tz_name: str | None, cfg: Config, now: datetime | N
     return time(start_h, 0) <= local.time() <= time(end_h, 0)
 
 
+def _over_fetch_factor(limit: int) -> int:
+    """How many rows to pull from SQL relative to the requested limit. Larger when limit is
+    small so we have enough headroom to filter out off-hours leads in Python without going
+    back to the DB. Capped so we don't accidentally pull tens of thousands of rows."""
+    return min(50, max(5, limit * 5))
+
+
 def claim_next_batch(conn: sqlite3.Connection, cfg: Config, limit: int) -> list[sqlite3.Row]:
-    """Atomically pick the next N callable leads and mark them in_progress."""
+    """Atomically pick the next N callable leads and mark them in_progress.
+
+    We filter by business hours in Python (the DB can't know about timezones), so we
+    over-fetch then trim. Skip reasons are aggregated and logged so operators can tell
+    'we returned 0' apart from 'we returned 0 because every callable lead is on the
+    east coast and it's currently 1am there'."""
     now_utc_iso = _now_utc().isoformat()
     candidates: list[sqlite3.Row] = []
+    skip_counts: dict[str, int] = {"outside_business_hours": 0}
+
     with transaction(conn):
+        # Count what's definitively unavailable so the operator sees the shape of the queue.
+        unavailable = conn.execute(
+            """SELECT
+                 SUM(CASE WHEN timezone IS NULL THEN 1 ELSE 0 END) AS no_timezone,
+                 SUM(CASE WHEN attempt_count >= ? THEN 1 ELSE 0 END) AS maxed_attempts,
+                 SUM(CASE WHEN next_eligible_at IS NOT NULL AND next_eligible_at > ?
+                          THEN 1 ELSE 0 END) AS cooling_down
+               FROM leads
+               WHERE status IN ('new', 'in_progress')""",
+            (cfg.max_attempts_per_lead, now_utc_iso),
+        ).fetchone()
+        skip_counts["no_timezone"] = unavailable["no_timezone"] or 0
+        skip_counts["maxed_attempts"] = unavailable["maxed_attempts"] or 0
+        skip_counts["cooling_down"] = unavailable["cooling_down"] or 0
+
         rows = conn.execute(
             """SELECT * FROM leads
                WHERE status IN ('new', 'in_progress')
@@ -57,8 +89,7 @@ def claim_next_batch(conn: sqlite3.Connection, cfg: Config, limit: int) -> list[
                  AND timezone IS NOT NULL
                ORDER BY attempt_count ASC, id ASC
                LIMIT ?""",
-            (cfg.max_attempts_per_lead, now_utc_iso, limit * 5),
-            # Over-fetch because we filter by business hours in Python (which the DB doesn't know about).
+            (cfg.max_attempts_per_lead, now_utc_iso, _over_fetch_factor(limit)),
         ).fetchall()
         for row in rows:
             if len(candidates) >= limit:
@@ -69,6 +100,17 @@ def claim_next_batch(conn: sqlite3.Connection, cfg: Config, limit: int) -> list[
                     "UPDATE leads SET status = 'in_progress', last_attempt_at = ? WHERE id = ?",
                     (now_utc_iso, row["id"]),
                 )
+            else:
+                skip_counts["outside_business_hours"] += 1
+
+    if len(candidates) < limit:
+        logger.info(
+            "claim_next_batch: returned %d of %d requested. Skip counts: %s",
+            len(candidates), limit,
+            {k: v for k, v in skip_counts.items() if v},
+        )
+    else:
+        logger.debug("claim_next_batch: returned %d leads", len(candidates))
     return candidates
 
 

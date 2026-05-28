@@ -42,6 +42,7 @@ def _result_row(row: sqlite3.Row) -> dict[str, Any]:
     scoring = json.loads(row["scoring"])
     return {
         "result_id": row["result_id"],
+        "lead_id": row["lead_id"],
         "restaurant": row["restaurant_name"],
         "phone": row["phone"],
         "location": f"{row['city']}, {row['state']}" if row["city"] else row["state"],
@@ -103,19 +104,24 @@ def list_leads(
 @app.get("/results")
 def list_results(
     tier: str | None = Query(None, pattern="^(hot|warm|cold|skip)$"),
+    outcome: str | None = Query(None, pattern="^(answered|voicemail|no_answer|busy|failed)$"),
     limit: int = Query(50, le=500),
     conn: sqlite3.Connection = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    sql = """SELECT r.id AS result_id, r.replaceability_score, r.scoring, r.extraction, r.created_at,
+    sql = """SELECT r.id AS result_id, r.lead_id, r.replaceability_score, r.scoring, r.extraction, r.created_at,
                     l.phone, l.restaurant_name, l.city, l.state,
                     ca.outcome
              FROM call_results r
              JOIN leads l ON l.id = r.lead_id
              JOIN call_attempts ca ON ca.id = r.attempt_id"""
+    where: list[str] = []
     params: list[Any] = []
     if tier:
-        sql += " WHERE json_extract(r.scoring, '$.urgency_tier') = ?"
-        params.append(tier)
+        where.append("json_extract(r.scoring, '$.urgency_tier') = ?"); params.append(tier)
+    if outcome:
+        where.append("ca.outcome = ?"); params.append(outcome)
+    if where:
+        sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY r.replaceability_score DESC LIMIT ?"
     params.append(limit)
     rows = conn.execute(sql, params).fetchall()
@@ -128,7 +134,7 @@ def get_result(
     conn: sqlite3.Connection = Depends(get_db),
 ) -> dict[str, Any]:
     row = conn.execute(
-        """SELECT r.id AS result_id, r.replaceability_score, r.scoring, r.extraction, r.created_at,
+        """SELECT r.id AS result_id, r.lead_id, r.replaceability_score, r.scoring, r.extraction, r.created_at,
                   l.phone, l.restaurant_name, l.city, l.state,
                   ca.outcome, ca.transcript, ca.duration_seconds
            FROM call_results r
@@ -143,3 +149,45 @@ def get_result(
     body["transcript"] = row["transcript"]
     body["duration_seconds"] = row["duration_seconds"]
     return body
+
+
+@app.get("/leads/{lead_id}")
+def get_lead(
+    lead_id: int,
+    include_transcripts: bool = Query(False),
+    conn: sqlite3.Connection = Depends(get_db),
+) -> dict[str, Any]:
+    """Drill into one lead: contacts, every attempt's outcome + transcript, latest result.
+    This is the screen an SDR uses after clicking through from the leaderboard."""
+    lead = conn.execute("SELECT * FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    if not lead:
+        raise HTTPException(404, "Lead not found")
+    contacts = conn.execute(
+        "SELECT first_name, last_name, email FROM lead_contacts WHERE lead_id = ?", (lead_id,)
+    ).fetchall()
+    attempts = conn.execute(
+        """SELECT id, started_at, ended_at, outcome, provider, duration_seconds, transcript
+           FROM call_attempts WHERE lead_id = ? ORDER BY id DESC""",
+        (lead_id,),
+    ).fetchall()
+    latest = conn.execute(
+        """SELECT extraction, scoring, replaceability_score, created_at
+           FROM call_results WHERE lead_id = ? ORDER BY id DESC LIMIT 1""",
+        (lead_id,),
+    ).fetchone()
+
+    return {
+        "lead": dict(lead),
+        "contacts": [dict(c) for c in contacts],
+        "attempts": [
+            {**{k: a[k] for k in a.keys() if k != "transcript"},
+             "transcript": a["transcript"] if include_transcripts else None}
+            for a in attempts
+        ],
+        "latest_result": ({
+            "replaceability_score": latest["replaceability_score"],
+            "created_at": latest["created_at"],
+            "extraction": json.loads(latest["extraction"]),
+            "scoring": json.loads(latest["scoring"]),
+        } if latest else None),
+    }

@@ -38,15 +38,18 @@ pip install -e ".[dev]"
 
 cp .env.example .env       # works as-is; mock provider, heuristic extractor
 
-mystery-shop ingest data/leads.xlsx
-mystery-shop run --batch 15
-mystery-shop results --limit 10
-mystery-shop stats
+mystery-shop ingest data/leads.xlsx     # or data/leads_sample.csv — CSV works too
+mystery-shop queue                       # snapshot of what's callable right now
+mystery-shop preview --batch 5           # peek at who's next (no side effects)
+mystery-shop run --batch 15              # place calls, streams per-call output
+mystery-shop results --tier hot --limit 5
+mystery-shop lead 42                     # drill into one restaurant
 
 # Optional: read API
 uvicorn mystery_shop.api:app --reload
-#   GET  http://localhost:8000/results?tier=hot
+#   GET  http://localhost:8000/results?tier=hot&outcome=no_answer
 #   GET  http://localhost:8000/results/1
+#   GET  http://localhost:8000/leads/42
 #   GET  http://localhost:8000/stats
 
 # Tests
@@ -61,26 +64,53 @@ heuristic extractor for `gpt-4o-mini` structured-output extraction. Set
 
 ## Live demo (for the 30-min interview session)
 
-Three commands that show the system working end-to-end in under 60 seconds:
+A walkthrough that shows the whole system in under 90 seconds:
 
 ```bash
-# 1. Place a small batch and see the outcome distribution + tier breakdown
-mystery-shop -v run --batch 5
-#  -> {"calls_placed": 5, "outcomes": {...}, "tiers": {"hot": 2, ...}, "errors": 0}
+# 1. INGEST — CSV path (the brief mentions CSV first). Reports skip reasons.
+mystery-shop ingest data/leads_sample.csv
 
-# 2. Pull the top hot lead with the full SDR briefing
-mystery-shop results --limit 1
+# 2. QUEUE — show what's currently callable + why anything is not
+mystery-shop queue
+#   Queue state at 2026-05-28T17:38:55Z (business hours: 11:00-20:00 local)
+#     Total leads: 2058
+#     Ready to call NOW:          1613
+#     Off-hours (eligible but local time outside window): 404
+#     Cooling down (retry queued): 10
+#     ...
 
-# 3. Or hit the API for the SDR-facing view
-uvicorn mystery_shop.api:app --reload  # then open http://localhost:8000/results?tier=hot
+# 3. PREVIEW — see who's next without actually calling
+mystery-shop preview --batch 5
+
+# 4. RUN — with realistic 5s delay-with-jitter per call so the demo feels real.
+#    Streams one line per call as it happens.
+mystery-shop run --batch 5 --realistic-delay 5
+#   [ 1/5 ] +18607858772     Bearsbbq                South Windsor, CT       → answered    COLD  r=33.3
+#   [ 2/5 ] +17043777686     Reids                   Charlotte, NC           → no_answer   HOT   r=85.5
+#   ...
+#   {"calls_placed": 5, "outcomes": {...}, "tiers": {"hot": 1, ...}, "errors": 0}
+
+# 5. RESULTS — filtered to the leads SDRs should call first
+mystery-shop results --tier hot --outcome no_answer --limit 3
+
+# 6. DRILL INTO ONE LEAD — contacts + every attempt + latest extraction/scoring
+mystery-shop lead 42
+
+# 7. RE-EXTRACT — iterate on the rubric or upgrade an old heuristic-only call to LLM
+#    without re-calling the restaurant.
+OPENAI_API_KEY=sk-... mystery-shop reextract 1
+
+# 8. API — same data shape, for the SDR-facing view
+uvicorn mystery_shop.api:app --reload
+#   GET /results?tier=hot&outcome=no_answer
+#   GET /leads/42
 ```
 
-To prove the error-handling story (no-op without it, but worth showing on a code walk):
+To prove the error-handling story on a code walk:
 
 ```bash
-# The orchestrator already survives provider exceptions — see
-# tests/test_pipeline.py::test_run_batch_survives_a_provider_exception
-pytest -q -k provider_exception
+# Orchestrator survives provider exceptions; LLM extractor falls back to heuristic.
+pytest -q -k "provider_exception or llm_extractor_falls_back or empty_transcript"
 ```
 
 ---
@@ -276,7 +306,8 @@ src/mystery_shop/
   scorer.py          rubric, sub-scores, tier, sdr_one_liner
   scheduler.py       business hours, claim_next_batch, retry policy
   orchestrator.py    end-to-end pipeline; thin glue
-  cli.py             argparse: init / ingest / run / results / stats
+  cli.py             argparse: init / ingest / queue / preview / run / results /
+                                lead / reextract / exclude / requeue / stats
   api.py             FastAPI read endpoints
 tests/
   test_pipeline.py   ingest, extractor, scorer, scheduler, e2e

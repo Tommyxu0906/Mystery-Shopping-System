@@ -193,9 +193,18 @@ def _transcript_voicemail(rng: random.Random, req: CallRequest) -> tuple[str, fl
 class MockProvider:
     name = "mock"
 
+    def __init__(self, call_delay_seconds: float = 0.0):
+        # 0 = return immediately (tests + fast iteration). >0 = sleep with jitter so a live demo
+        # feels like real calls instead of an instant flash. A real call is 30-120s; 5-10s is
+        # enough for the demo to feel real without being painful.
+        self.call_delay_seconds = max(0.0, float(call_delay_seconds))
+
     def place_call(self, req: CallRequest) -> CallResult:
-        # Tiny pause so timing looks plausible in logs even though we're not actually calling.
+        # Tiny baseline pause so timing looks plausible in logs even at delay=0.
         time.sleep(0.05)
+        if self.call_delay_seconds > 0:
+            jitter = random.uniform(0.7, 1.3)
+            time.sleep(self.call_delay_seconds * jitter)
 
         attempt_salt = uuid.uuid4().hex[:6]
         rng = _rng_for(req.phone, attempt_salt)

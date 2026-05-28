@@ -242,3 +242,113 @@ def test_scheduler_skips_outside_business_hours():
     assert not is_within_business_hours("America/New_York", cfg, utc_3am)
     # Lead with no timezone should never be in business hours
     assert not is_within_business_hours(None, cfg, utc_3am)
+
+
+# ---------------------------------------------------------------------------
+# UX-layer additions (2026-05-28).
+# ---------------------------------------------------------------------------
+
+def test_csv_ingest_round_trip(conn: sqlite3.Connection, tmp_path: Path):
+    """CSV ingest hits the same code path as xlsx and produces correct counters
+    including a skip_reasons breakdown."""
+    from mystery_shop.ingest import ingest_file
+    csv_path = tmp_path / "tiny.csv"
+    csv_path.write_text(
+        "first_name,last_name,organization_state,organization_city,Location Phone,organization_website_url\n"
+        "Jamie,Lee,California,San Francisco,+14155550111,http://www.bayareadeli.com\n"
+        "Priya,Shah,Texas,Austin,+15125550199,http://www.eastviewpizza.com\n"
+        "Bad,Row,,,nope,\n"          # 'nope' lands in the Location Phone column
+        "Empty,Phone,,,,\n"           # blank Location Phone
+    )
+    counters = ingest_file(conn, csv_path)
+    assert counters["leads_inserted"] == 2
+    assert counters["skipped"] == 2
+    # Skip reasons should track both shapes of badness.
+    assert counters["skip_reasons"].get("invalid_phone", 0) == 1
+    assert counters["skip_reasons"].get("empty_phone", 0) == 1
+
+
+def test_preview_does_not_claim_leads(conn: sqlite3.Connection):
+    """preview_next_batch is read-only — leads stay 'new' after calling it, unlike claim_next_batch."""
+    from mystery_shop.scheduler import preview_next_batch
+    conn.executemany(
+        """INSERT INTO leads (phone, restaurant_name, state, timezone, status)
+           VALUES (?, ?, ?, ?, 'new')""",
+        [(f"+13125551{i:03d}", f"Preview Test {i}", "Illinois", "America/Chicago") for i in range(3)],
+    )
+    cfg = load_config()
+    rows = preview_next_batch(conn, cfg, 3)
+    if not rows:
+        pytest.skip("Outside business hours; skipping.")
+    assert len(rows) > 0
+    # All leads should still be in 'new' status — preview is read-only.
+    statuses = {r["status"] for r in conn.execute("SELECT status FROM leads").fetchall()}
+    assert statuses == {"new"}
+
+
+def test_queue_state_shape(conn: sqlite3.Connection):
+    """queue_state returns the buckets the CLI displays."""
+    from mystery_shop.scheduler import queue_state
+    conn.execute(
+        """INSERT INTO leads (phone, restaurant_name, state, timezone, status)
+           VALUES ('+13125559999', 'Q Test', 'Illinois', 'America/Chicago', 'new')"""
+    )
+    conn.execute(
+        """INSERT INTO leads (phone, restaurant_name, status)
+           VALUES ('+13125559998', 'No TZ Test', 'new')"""
+    )
+    cfg = load_config()
+    state = queue_state(conn, cfg)
+    assert "ready_now" in state
+    assert "cooling_down" in state
+    assert "no_timezone" in state
+    assert state["no_timezone"] >= 1  # we just inserted one
+    assert state["leads_total"] >= 2
+
+
+def test_reextract_updates_existing_result(conn: sqlite3.Connection):
+    """reextract_attempt re-runs extraction on a stored transcript and UPDATEs (doesn't dupe)
+    the call_results row."""
+    from mystery_shop.orchestrator import reextract_attempt
+    # Seed a lead, attempt, and result manually.
+    cur = conn.execute(
+        """INSERT INTO leads (phone, restaurant_name, state, timezone)
+           VALUES ('+13125557777', 'Reextract Test', 'Illinois', 'America/Chicago')"""
+    )
+    lead_id = cur.lastrowid
+    transcript = "Host: Hi this is Maria.\nAlex: Are you open?\nHost: Yes until 10 PM."
+    cur = conn.execute(
+        """INSERT INTO call_attempts (lead_id, outcome, provider, transcript)
+           VALUES (?, 'answered', 'mock', ?)""",
+        (lead_id, transcript),
+    )
+    attempt_id = cur.lastrowid
+    conn.execute(
+        """INSERT INTO call_results (attempt_id, lead_id, extraction, scoring,
+                                     overall_score, replaceability_score)
+           VALUES (?, ?, '{}', '{}', 0, 0)""",
+        (attempt_id, lead_id),
+    )
+    cfg = load_config()
+    ext, sc = reextract_attempt(conn, cfg, attempt_id)
+    assert ext.host_name == "Maria"
+    assert sc.replaceability_score != 0  # got updated
+    # Exactly one result row per attempt — no duplicate.
+    count = conn.execute(
+        "SELECT COUNT(*) c FROM call_results WHERE attempt_id = ?", (attempt_id,)
+    ).fetchone()["c"]
+    assert count == 1
+
+
+def test_mock_provider_respects_call_delay():
+    """call_delay_seconds adds latency. We assert lower bound only — jitter goes both ways."""
+    import time as _time
+    from mystery_shop.providers.base import CallRequest
+    from mystery_shop.providers.mock import MockProvider
+    prov = MockProvider(call_delay_seconds=0.2)
+    start = _time.monotonic()
+    prov.place_call(CallRequest(lead_id=1, phone="+12125550000", restaurant_name="Delay Test",
+                                system_prompt="", opening_line=""))
+    elapsed = _time.monotonic() - start
+    # Jitter is [0.7, 1.3] × 0.2 → [0.14, 0.26]. Add baseline 0.05 → bound at 0.14.
+    assert elapsed >= 0.10

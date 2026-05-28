@@ -1,0 +1,6 @@
+first_name,last_name,organization_website_url,email,organization_street_address,organization_raw_address,organization_state,organization_city,organization_country,organization_postal_code,Google Reviews Count,Location Phone,Google Maps Url
+Jamie,Lee,http://www.bayareadeli.com,jamie@bayareadeli.com,42 Mission St,"42 Mission St, San Francisco, CA 94103, US",California,San Francisco,United States,94103,1240,+14155550111,
+Priya,Shah,http://www.eastviewpizza.com,priya@eastviewpizza.com,1010 Eastview Ave,"1010 Eastview Ave, Austin, TX 78702, US",Texas,Austin,United States,78702,873,+15125550199,
+Daniel,Park,http://www.dpgrill.com,,,"Brooklyn, NY 11211, US",New York,Brooklyn,United States,11211,512,+17185550144,
+Maria,Russo,,,,"Boston, MA 02118, US",Massachusetts,Boston,United States,02118,,(617) 555-0123,
+Bad,Row,,,,,,,,,,,bogus-phone,

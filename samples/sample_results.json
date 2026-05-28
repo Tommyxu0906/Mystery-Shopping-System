@@ -1,9 +1,10 @@
 [
   {
-    "result_id": 17,
-    "restaurant": "Thekniferestaurant",
-    "phone": "+17862320040",
-    "location": "Miami, Florida",
+    "result_id": 6,
+    "lead_id": 7,
+    "restaurant": "Boloco",
+    "phone": "+16174307386",
+    "location": "Boston, MA",
     "outcome": "no_answer",
     "duration_seconds": 30.0,
     "extraction": {
@@ -41,10 +42,11 @@
     "transcript": "[no answer after 30 seconds of ringing]"
   },
   {
-    "result_id": 30,
-    "restaurant": "Weathervaneseafoods",
-    "phone": "+12074390330",
-    "location": "Kittery, Maine",
+    "result_id": 16,
+    "lead_id": 17,
+    "restaurant": "Sluttyveganatl",
+    "phone": "+14704608344",
+    "location": "Atlanta, GA",
     "outcome": "voicemail",
     "duration_seconds": 26.0,
     "extraction": {
@@ -79,56 +81,16 @@
         "Routes to voicemail during stated business hours."
       ]
     },
-    "transcript": "Voicemail: You've reached Weathervaneseafoods. We're not available right now. Our hours are 11 AM to 9 PM Tuesday through Sunday. Please leave a message after the tone.\nAlex: Hi, this is Alex, I was hoping to place a takeout order, I'll try back later, thanks."
+    "transcript": "Voicemail: You've reached Sluttyveganatl. We're not available right now. Our hours are 11 AM to 9 PM Tuesday through Sunday. Please leave a message after the tone.\nAlex: Hi, this is Alex, I was hoping to place a takeout order, I'll try back later, thanks."
   },
   {
-    "result_id": 28,
-    "restaurant": "Shooterswaterfront",
-    "phone": "+19545662855",
-    "location": "Fort Lauderdale, Florida",
-    "outcome": "busy",
-    "duration_seconds": 2.0,
-    "extraction": {
-      "answered_by_human": false,
-      "voicemail": false,
-      "ivr_present": false,
-      "hold_time_seconds": null,
-      "stated_close_time": null,
-      "stated_open_for_takeout": null,
-      "order_accepted": false,
-      "order_refused_reason": null,
-      "upsell_attempted": false,
-      "estimated_pickup_minutes": null,
-      "host_name": null,
-      "english_fluency": "unknown",
-      "friendliness": "unknown",
-      "hung_up_by": "system",
-      "notable_quotes": [],
-      "summary_one_line": "Line was busy.",
-      "extractor": "heuristic"
-    },
-    "scoring": {
-      "fit_score": 90.0,
-      "pain_score": 85.0,
-      "replaceability_score": 76.5,
-      "answer_quality": 10.0,
-      "order_handling": 0.0,
-      "host_quality": 0.0,
-      "urgency_tier": "hot",
-      "sdr_one_liner": "[HOT] Line busy during business hours \u2014 likely understaffed phones.",
-      "reasons": [
-        "Line was busy."
-      ]
-    },
-    "transcript": "[busy signal]"
-  },
-  {
-    "result_id": 13,
-    "restaurant": "Sluttyveganatl",
-    "phone": "+14704608344",
-    "location": "Atlanta, Georgia",
+    "result_id": 15,
+    "lead_id": 16,
+    "restaurant": "Summitcoffee",
+    "phone": "+19802315436",
+    "location": "Davidson, NC",
     "outcome": "answered",
-    "duration_seconds": 52.0,
+    "duration_seconds": 57.0,
     "extraction": {
       "answered_by_human": false,
       "voicemail": false,
@@ -166,15 +128,16 @@
         "Order refused: other."
       ]
     },
-    "transcript": "IVR: Thank you for calling Sluttyveganatl. For hours, press 1. For directions, press 2. To place an order, press 3. To speak with a host, press 0.\n[Alex presses 3]\nIVR: Online ordering is available at our website. To speak with a host, press 0. Or stay on the line.\n[hold music for 60+ seconds]\n[Alex hangs up after waiting]"
+    "transcript": "IVR: Thank you for calling Summitcoffee. For hours, press 1. For directions, press 2. To place an order, press 3. To speak with a host, press 0.\n[Alex presses 3]\nIVR: Online ordering is available at our website. To speak with a host, press 0. Or stay on the line.\n[hold music for 60+ seconds]\n[Alex hangs up after waiting]"
   },
   {
-    "result_id": 12,
-    "restaurant": "Summitcoffee",
-    "phone": "+19802315436",
-    "location": "Davidson, North Carolina",
+    "result_id": 3,
+    "lead_id": 4,
+    "restaurant": null,
+    "phone": "+16175550123",
+    "location": "Boston, MA",
     "outcome": "answered",
-    "duration_seconds": 100.0,
+    "duration_seconds": 88.0,
     "extraction": {
       "answered_by_human": true,
       "voicemail": false,
@@ -208,57 +171,16 @@
         "Attempted an upsell."
       ]
     },
-    "transcript": "Host: Summitcoffee.\nAlex: Hi, are you open for takeout?\nHost: Yeah, til nine.\nAlex: Cool, can I order the carnitas tacos?\nHost: Sure. Anything else?\nAlex: Hmm, what would you recommend with it?\nHost: Up to you.\nAlex: Okay just the one. How long for pickup?\nHost: Fifteen minutes.\nAlex: Let me call back to confirm, thanks."
+    "transcript": "Host: the restaurant.\nAlex: Hi, are you open for takeout?\nHost: Yeah, til nine.\nAlex: Cool, can I order the carnitas tacos?\nHost: Sure. Anything else?\nAlex: Hmm, what would you recommend with it?\nHost: Up to you.\nAlex: Okay just the one. How long for pickup?\nHost: Fifteen minutes.\nAlex: Let me call back to confirm, thanks."
   },
   {
-    "result_id": 14,
-    "restaurant": "Karbachbrewing",
-    "phone": "+17136808886",
-    "location": "Houston, Texas",
+    "result_id": 25,
+    "lead_id": 28,
+    "restaurant": "Oipsayre",
+    "phone": "+15708889167",
+    "location": "Sayre, PA",
     "outcome": "answered",
-    "duration_seconds": 132.0,
-    "extraction": {
-      "answered_by_human": true,
-      "voicemail": false,
-      "ivr_present": false,
-      "hold_time_seconds": 0,
-      "stated_close_time": null,
-      "stated_open_for_takeout": true,
-      "order_accepted": false,
-      "order_refused_reason": null,
-      "upsell_attempted": false,
-      "estimated_pickup_minutes": null,
-      "host_name": null,
-      "english_fluency": "limited",
-      "friendliness": "neutral",
-      "hung_up_by": "customer",
-      "notable_quotes": [],
-      "summary_one_line": "Order takeable on the phone.",
-      "extractor": "heuristic"
-    },
-    "scoring": {
-      "fit_score": 90.0,
-      "pain_score": 49.5,
-      "replaceability_score": 44.6,
-      "answer_quality": 100.0,
-      "order_handling": 25.0,
-      "host_quality": 40,
-      "urgency_tier": "cold",
-      "sdr_one_liner": "[COLD] Language barrier on the phone \u2014 Maple can lift order capture without staffing changes.",
-      "reasons": [
-        "Order not completed.",
-        "Language barrier may be costing them orders."
-      ]
-    },
-    "transcript": "Host: Hello? Karbachbrewing?\nAlex: Hi, are you open for takeout right now?\nHost: Eh\u2026 takeout, yes. You order?\nAlex: Yes, what time do you close?\nHost: Close? Nine, ten. Yes.\nAlex: Can I order the burger?\nHost: Burger\u2026 yes. One?\nAlex: Yes one. What sides do you have?\nHost: Sorry, one moment, my son help \u2014 Hello? Yes, sides are fries, salad.\nAlex: Just the burger then. Let me call back to confirm, thanks."
-  },
-  {
-    "result_id": 2,
-    "restaurant": "Galvinsonmain",
-    "phone": "+15028631909",
-    "location": "Georgetown, Kentucky",
-    "outcome": "answered",
-    "duration_seconds": 33.0,
+    "duration_seconds": 28.0,
     "extraction": {
       "answered_by_human": true,
       "voicemail": false,
@@ -295,6 +217,6 @@
         "Warm, welcoming tone."
       ]
     },
-    "transcript": "Host: Galvinsonmain, this is Jordan.\nAlex: Hi, can I place a takeout order over the phone?\nHost: We actually only do takeout through our website or DoorDash now.\nAlex: Oh okay, no problem, I'll do that. Thanks."
+    "transcript": "Host: Oipsayre, this is Jordan.\nAlex: Hi, can I place a takeout order over the phone?\nHost: We actually only do takeout through our website or DoorDash now.\nAlex: Oh okay, no problem, I'll do that. Thanks."
   }
 ]

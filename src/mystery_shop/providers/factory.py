@@ -10,7 +10,7 @@ from .vapi import VapiProvider
 def build_provider(cfg: Config) -> CallProvider:
     name = cfg.call_provider.lower()
     if name == "mock":
-        return MockProvider()
+        return MockProvider(call_delay_seconds=cfg.mock_call_delay_seconds)
     if name == "vapi":
         return VapiProvider(
             api_key=cfg.vapi_api_key,

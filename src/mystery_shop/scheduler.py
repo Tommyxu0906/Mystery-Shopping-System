@@ -114,6 +114,94 @@ def claim_next_batch(conn: sqlite3.Connection, cfg: Config, limit: int) -> list[
     return candidates
 
 
+def preview_next_batch(conn: sqlite3.Connection, cfg: Config, limit: int) -> list[sqlite3.Row]:
+    """Same selection logic as claim_next_batch but READ-ONLY — does not mark in_progress.
+    Used by `mystery-shop preview` so reviewers can see who would be called before any
+    side effects happen."""
+    now_utc_iso = _now_utc().isoformat()
+    rows = conn.execute(
+        """SELECT * FROM leads
+           WHERE status IN ('new', 'in_progress')
+             AND attempt_count < ?
+             AND (next_eligible_at IS NULL OR next_eligible_at <= ?)
+             AND timezone IS NOT NULL
+           ORDER BY attempt_count ASC, id ASC
+           LIMIT ?""",
+        (cfg.max_attempts_per_lead, now_utc_iso, _over_fetch_factor(limit)),
+    ).fetchall()
+    out: list[sqlite3.Row] = []
+    for row in rows:
+        if len(out) >= limit:
+            break
+        if is_within_business_hours(row["timezone"], cfg):
+            out.append(row)
+    return out
+
+
+def queue_state(conn: sqlite3.Connection, cfg: Config) -> dict:
+    """Snapshot of the queue right now. Used by `mystery-shop queue`.
+
+    Returns:
+      - leads_total / by_status counts
+      - ready_now: leads that would be called this minute
+      - off_hours_callable: leads eligible by attempt/cooldown but outside local business hours
+      - cooling_down: leads with next_eligible_at in the future
+      - no_timezone: excluded due to missing tz
+      - next_unlock_at: the earliest next_eligible_at in the future (when something new opens up)
+    """
+    now = _now_utc()
+    now_iso = now.isoformat()
+
+    by_status = {
+        r["status"]: r["c"]
+        for r in conn.execute("SELECT status, COUNT(*) c FROM leads GROUP BY status").fetchall()
+    }
+    total = sum(by_status.values())
+
+    # Compute partition for new + in_progress leads (the actionable bucket).
+    actionable = conn.execute(
+        """SELECT id, timezone, next_eligible_at, attempt_count
+           FROM leads
+           WHERE status IN ('new', 'in_progress')""",
+    ).fetchall()
+
+    ready_now = off_hours_callable = cooling_down = no_timezone = maxed_attempts = 0
+    next_unlock: datetime | None = None
+    for row in actionable:
+        if not row["timezone"]:
+            no_timezone += 1
+            continue
+        if row["attempt_count"] >= cfg.max_attempts_per_lead:
+            maxed_attempts += 1
+            continue
+        if row["next_eligible_at"] and row["next_eligible_at"] > now_iso:
+            cooling_down += 1
+            try:
+                t = datetime.fromisoformat(row["next_eligible_at"])
+                if next_unlock is None or t < next_unlock:
+                    next_unlock = t
+            except ValueError:
+                pass
+            continue
+        if is_within_business_hours(row["timezone"], cfg):
+            ready_now += 1
+        else:
+            off_hours_callable += 1
+
+    return {
+        "now_utc": now_iso,
+        "leads_total": total,
+        "by_status": by_status,
+        "ready_now": ready_now,
+        "off_hours_callable": off_hours_callable,
+        "cooling_down": cooling_down,
+        "no_timezone": no_timezone,
+        "maxed_attempts": maxed_attempts,
+        "next_cooldown_unlock_at": next_unlock.isoformat() if next_unlock else None,
+        "business_hours_local": cfg.business_hours_local,
+    }
+
+
 def apply_retry_policy(
     conn: sqlite3.Connection, cfg: Config, lead_id: int, outcome: CallOutcome
 ) -> None:

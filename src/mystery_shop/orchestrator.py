@@ -13,6 +13,7 @@ import logging
 import sqlite3
 import traceback
 from dataclasses import dataclass
+from typing import Callable
 
 from .agent_script import opening_line, system_prompt
 from .config import Config
@@ -119,13 +120,18 @@ def run_batch(
     cfg: Config,
     batch_size: int,
     provider: CallProvider | None = None,
+    on_record: Callable[[int, int, PipelineRecord], None] | None = None,
 ) -> list[PipelineRecord]:
     """Process up to `batch_size` callable leads end-to-end. Returns one record per lead.
 
     Failures on individual leads do not abort the batch. A lead that errored is converted
     into a synthetic 'failed' attempt and handed back to the retry policy, so it will be
     re-queued after the standard failed-call cooldown. This means a transient provider
-    outage degrades gracefully instead of stalling the queue."""
+    outage degrades gracefully instead of stalling the queue.
+
+    on_record(index_1_based, total, record): optional callback fired after each lead
+    completes. The CLI uses this for live per-call output so the operator sees progress
+    instead of staring at a blinking cursor for the duration of the batch."""
     provider = provider or build_provider(cfg)
     extractor = build_extractor(cfg)
     leads = claim_next_batch(conn, cfg, batch_size)
@@ -133,28 +139,73 @@ def run_batch(
         logger.info("run_batch: no callable leads right now")
         return []
 
+    total = len(leads)
     logger.info("run_batch: processing %d leads with provider=%s extractor=%s",
-                len(leads), provider.name, getattr(extractor, "name", "?"))
+                total, provider.name, getattr(extractor, "name", "?"))
 
     out: list[PipelineRecord] = []
-    for lead in leads:
+    for idx, lead in enumerate(leads, start=1):
         try:
-            out.append(_process_lead(conn, cfg, provider, extractor, lead))
+            record = _process_lead(conn, cfg, provider, extractor, lead)
         except Exception as exc:
             logger.exception("Lead %s failed mid-pipeline; recording synthetic failure", lead["id"])
             try:
                 attempt_id = _record_synthetic_failure(conn, lead["id"], provider.name, exc)
                 apply_retry_policy(conn, cfg, lead["id"], CallOutcome.FAILED)
             except Exception:
-                # If even the DB write fails, we can't do much except log and move on.
                 logger.exception("Could not record synthetic failure for lead %s", lead["id"])
                 attempt_id = None
-            out.append(PipelineRecord(
+            record = PipelineRecord(
                 lead_id=lead["id"], phone=lead["phone"], outcome=CallOutcome.FAILED,
                 attempt_id=attempt_id, result_id=None,
                 extraction=None, scoring=None,
                 transcript="", duration_seconds=0.0,
                 error=f"{type(exc).__name__}: {exc}",
-            ))
+            )
+        out.append(record)
+        if on_record is not None:
+            try:
+                on_record(idx, total, record)
+            except Exception:
+                # A broken progress printer should never break the pipeline.
+                logger.exception("on_record callback raised; continuing")
 
     return out
+
+
+def reextract_attempt(
+    conn: sqlite3.Connection,
+    cfg: Config,
+    attempt_id: int,
+) -> tuple[Extraction, Score]:
+    """Re-run extraction + scoring on a previously stored transcript and UPDATE call_results.
+
+    Useful for iterating on the rubric without re-calling, or for upgrading earlier
+    heuristic-only runs to LLM extraction once OPENAI_API_KEY is set."""
+    row = conn.execute(
+        "SELECT lead_id, outcome, transcript FROM call_attempts WHERE id = ?",
+        (attempt_id,),
+    ).fetchone()
+    if not row:
+        raise ValueError(f"call_attempts id={attempt_id} not found")
+
+    outcome = CallOutcome(row["outcome"])
+    extractor = build_extractor(cfg)
+    ext = extractor.extract(row["transcript"] or "", outcome)
+    sc = score(ext, outcome)
+
+    existing = conn.execute(
+        "SELECT id FROM call_results WHERE attempt_id = ?", (attempt_id,)
+    ).fetchone()
+    if existing:
+        conn.execute(
+            """UPDATE call_results
+               SET extraction = ?, scoring = ?,
+                   overall_score = ?, replaceability_score = ?
+               WHERE id = ?""",
+            (dumps(ext.to_dict()), dumps(sc.to_dict()),
+             sc.replaceability_score, sc.replaceability_score, existing["id"]),
+        )
+    else:
+        _record_result(conn, attempt_id, row["lead_id"], ext, sc)
+    return ext, sc

@@ -24,6 +24,9 @@ class Config:
     max_attempts_per_lead: int = 3
     retry_after_no_answer_min: int = 120
     retry_after_busy_min: int = 30
+    # MockProvider only — simulate realistic call latency so live demos feel like real calls.
+    # 0 (default) returns immediately; tests rely on this. CLI --realistic-delay sets a sensible 5s.
+    mock_call_delay_seconds: float = 0.0
 
 
 def load_config() -> Config:
@@ -34,4 +37,5 @@ def load_config() -> Config:
         vapi_api_key=os.getenv("VAPI_API_KEY") or None,
         vapi_phone_number_id=os.getenv("VAPI_PHONE_NUMBER_ID") or None,
         vapi_assistant_id=os.getenv("VAPI_ASSISTANT_ID") or None,
+        mock_call_delay_seconds=float(os.getenv("MOCK_CALL_DELAY_SECONDS", "0") or 0),
     )

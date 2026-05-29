@@ -364,46 +364,6 @@ that side until the call cost stops dominating.
 
 ---
 
-## What I'd build next (one more week)
-
-1. **Real Vapi run on a 50-call slice** to validate the script in the wild and
-   tune `endCallFunctionEnabled` / hangup heuristics against real audio.
-2. **An LLM-based extractor evaluation suite** — 30 hand-labeled transcripts;
-   precision/recall per field. Right now I'm trusting LLM JSON-mode without a
-   regression gate.
-3. **Smarter scheduling** — rate-limit by area code (don't blast a city), random
-   jitter inside the call window, lunch/dinner-rush awareness.
-4. **Geocoded timezones** — fix the split-state simplification with a postal-code
-   lookup.
-5. **Owner-side data on the result** — when an SDR pulls a hot lead, surface the
-   linked `lead_contacts` (names + email) on the same view.
-6. **Webhook callback flow for Vapi** — current `VapiProvider` polls; webhook is
-   the right shape for any nontrivial volume.
-7. **Cost guardrails** — daily call budget, kill-switch, per-tz queue caps.
-
----
-
-## Trade-offs and what I deliberately didn't do
-
-- **No Postgres / no Alembic.** SQLite + raw SQL is perfect for take-home scale.
-  Schema in [`db.py`](src/mystery_shop/db.py); migrating to Postgres is a
-  ~30-minute job because we use SQL that parses on both.
-- **No async / no worker pool.** `run_batch` is sequential. With a real provider
-  it's IO-bound on the poll loop — async or a thread pool would be the next move.
-  Not needed for the take-home and would obscure the design.
-- **No ORM.** Five tables, hand-written SQL is clearer than wrestling with
-  SQLAlchemy types here.
-- **Heuristic extractor is tailored to mock transcripts.** That's deliberate: it
-  gives the project a zero-config working demo and a deterministic baseline. The
-  LLM extractor is the production path.
-- **No retry on the LLM extraction call** — a transient failure should just
-  re-enqueue the lead through the normal scheduler; no need for a second retry
-  layer inside extraction.
-- **No auth on the FastAPI read endpoints.** Internal SDR tool — would gate
-  behind your existing org auth in production.
-
----
-
 ## License / attribution
 
 Built for Maple's take-home interview round 2.
